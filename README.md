@@ -46,7 +46,10 @@ webloc validate --base-source /tmp/base-en.json --config webloc.config.json
 
 - **push:** en.json defines the keys and source texts. Updates every en Sheet
   cell, adds missing rows, removes obsolete rows; preserves existing target
-  Sheet translations. New target cells start blank.
+  Sheet translations. New target cells start blank. Target translations whose
+  ICU contract no longer matches a changed source are kept and reported as
+  `contract_mismatch`; push does not fail on them, but validate/pull do until
+  translators fix those cells.
 - **seed:** uploads local JSON translations; overwrites existing Sheet values.
   Missing target files/keys become blank; local orphan keys are rejected.
   Run intentionally during migration, before editors start using the Sheet.
@@ -67,16 +70,19 @@ webloc validate --base-source /tmp/base-en.json --config webloc.config.json
 
 For PR validation, export the **trusted base commit's** en.json and pass
 `--base-source`. Only Sheet rows added/deleted by that PR, and source cells
-changed relative to base, are tolerated until post-merge push. Unrelated
+changed relative to base, are tolerated until post-merge push; Sheet target
+contract mismatches on those changed keys are warnings. Unrelated
 Sheet missing/orphan/stale rows still fail. Local orphan keys still fail.
 Strict mode still requires local translations for additions. Pull never
 uses the Sheet's English cells as fallback.
 
 ## JSON and ICU policies
 
-UTF-8 output is valid JSON, sorted deterministically with two-space indentation
-and a trailing newline. Object/string trees round-trip without altering message
-strings. Formatting and original object order are not retained.
+UTF-8 output is valid JSON with two-space indentation and a trailing newline.
+Key order follows en.json (target files are rebuilt from the en template), so
+pull and merge add no reordering noise. Object/string trees round-trip without
+altering message strings. Compact hand formatting (several members on one line)
+is normalized on the first write.
 
 Arrays use zero-based bracket paths: `paywall.reviews[0].text`. Nested arrays
 are supported. These are synchronization paths, not new next-intl API keys;

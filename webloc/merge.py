@@ -14,7 +14,8 @@ def merge(base, ours, theirs, path=""):
         return ours
     if all(isinstance(v, dict) for v in (base, ours, theirs)):
         result = {}
-        for key in sorted(set(base) | set(ours) | set(theirs)):
+        # Ours' order first, then keys new in theirs, so merges add no reorder noise.
+        for key in dict.fromkeys([*ours, *theirs, *base]):
             value = merge(base.get(key, MISSING), ours.get(key, MISSING),
                           theirs.get(key, MISSING), path + "/" + key)
             if value is not MISSING:
