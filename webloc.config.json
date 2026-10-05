@@ -1,0 +1,7 @@
+{
+  "spreadsheet_id": "1vRttkL1XaZffrTb3jnD29viTvAf_SAzlhdZVVBKaLXw",
+  "source_locale": "en",
+  "locales_dir": "locales",
+  "locales": ["en", "tr", "es", "fr", "pt"],
+  "tab_prefix": "web_"
+}

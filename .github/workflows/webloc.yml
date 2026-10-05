@@ -1,0 +1,101 @@
+# Reuse this workflow from the actual web repository (see README).
+name: Web localization
+on:
+  workflow_call:
+    inputs:
+      operation:
+        type: string
+        default: validate
+      config_path:
+        type: string
+        default: webloc.config.json
+      locales_dir:
+        type: string
+        default: locales
+      base_ref:
+        type: string
+        default: ''
+      tool_ref:
+        type: string
+        default: main
+    secrets:
+      GOOGLE_SA_JSON:
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: webloc-sheet-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install tool
+        env:
+          TOOL_REF: ${{ inputs.tool_ref }}
+        run: pip install "git+https://github.com/AstopiaAstrology/astopia-web-locsync.git@$TOOL_REF"
+      - name: Validate inputs
+        env:
+          OP: ${{ inputs.operation }}
+          LOCALES: ${{ inputs.locales_dir }}
+        run: |
+          case "$OP" in validate|push|pull) ;; *) exit 1;; esac
+          test "$LOCALES" = locales
+      - name: Local PR validation
+        if: inputs.operation == 'validate'
+        env:
+          CONFIG: ${{ inputs.config_path }}
+        run: webloc validate --local-only --config "$CONFIG"
+      - name: Sheet validation
+        if: inputs.operation == 'validate'
+        env:
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+          BASE_REF: ${{ inputs.base_ref }}
+          CONFIG: ${{ inputs.config_path }}
+        run: |
+          if [ -z "$GOOGLE_SA_JSON" ]; then
+            echo "Sheet validation unavailable: secret missing (e.g. fork PR)."
+            exit 0
+          fi
+          if [ -n "$BASE_REF" ]; then
+            git show "$BASE_REF:locales/en.json" > /tmp/webloc-base.json
+            webloc validate --config "$CONFIG" --base-source /tmp/webloc-base.json
+          else
+            webloc validate --config "$CONFIG"
+          fi
+      - name: Push source after merge
+        if: inputs.operation == 'push'
+        env:
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+          CONFIG: ${{ inputs.config_path }}
+        run: webloc push --config "$CONFIG"
+      - name: Validate, pull, validate
+        if: inputs.operation == 'pull'
+        env:
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+          CONFIG: ${{ inputs.config_path }}
+        run: |
+          webloc validate --config "$CONFIG"
+          webloc pull --config "$CONFIG"
+          webloc validate --config "$CONFIG"
+      - name: Create translation PR
+        if: inputs.operation == 'pull'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: codex/webloc-translations
+          delete-branch: true
+          add-paths: locales/*.json
+          commit-message: 'chore(i18n): sync Sheet translations'
+          title: 'chore(i18n): sync Sheet translations'
+          body: 'Updates target locale JSON from the web Google Sheet. en.json remains the source authority.'

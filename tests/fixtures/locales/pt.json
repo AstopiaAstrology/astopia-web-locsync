@@ -1,0 +1,8 @@
+{
+  "InsightsHub": {
+    "title": "Centro de insights"
+  },
+  "credits_wallet_title": "Wallet",
+  "greeting": "Hello {name}",
+  "items": "{count, plural, one {# item} other {# items}}"
+}

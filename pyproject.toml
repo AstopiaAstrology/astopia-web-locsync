@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "webloc"
+version = "0.1.0"
+description = "Next.js next-intl JSON and Google Sheets localization sync"
+requires-python = ">=3.10"
+dependencies = ["google-api-python-client>=2.120,<3", "google-auth>=2.29,<3"]
+
+[project.scripts]
+webloc = "webloc.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["webloc*"]

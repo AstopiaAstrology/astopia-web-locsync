@@ -1,0 +1,26 @@
+# Copy to .github/workflows/localization.yml in the WEB repository.
+name: Localization
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths: ['locales/en.json', 'webloc.config.json']
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [validate, push, pull]
+        default: validate
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  localization:
+    uses: AstopiaAstrology/astopia-web-locsync/.github/workflows/webloc.yml@main
+    with:
+      operation: ${{ github.event_name == 'push' && 'push' || github.event_name == 'schedule' && 'pull' || github.event_name == 'workflow_dispatch' && inputs.operation || 'validate' }}
+      base_ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
+    secrets:
+      GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
