@@ -91,12 +91,12 @@ def unflatten(messages, template=None):
             if indices != list(range(len(indices))):
                 raise ValueError("sparse arrays require a source template")
             return [build(node[index]) for index in indices]
-        return {key: build(value) for key, value in sorted(node.items())}
+        return {key: build(value) for key, value in node.items()}
     return build(tree)
 
 
 def write(path, data):
-    text = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    text = json.dumps(data, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")

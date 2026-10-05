@@ -143,6 +143,35 @@ class Tests(unittest.TestCase):
                          ({"a": "x"}, {"a": "y"}, {"a": "z"})]:
             with self.assertRaises(ValueError): merge(b, o, t)
 
+    def test_write_and_merge_keep_source_order(self):
+        data = {"nav": {"z": "Z", "a": "A"}, "MyReadings": "R", "b": [{"y": "1", "x": "2"}]}
+        path = self.root / "order.json"
+        write(path, data)
+        self.assertEqual(path.read_text(encoding="utf-8"), json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+        self.assertEqual(list(unflatten(flatten(data), template=data)), ["nav", "MyReadings", "b"])
+        merged = merge({"z": "1", "a": "1"}, {"z": "1", "a": "1", "m": "ours"}, {"z": "1", "a": "2", "c": "theirs"})
+        self.assertEqual(list(merged), ["z", "a", "m", "c"])
+        self.assertEqual(merged["a"], "2")
+
+    def test_source_contract_change_does_not_block_push(self):
+        sync(self.cfg, "seed", client=self.sheet)
+        self.sheet.tables["web_tr"] = [Row("InsightsHub.title", "Merhaba {name}"),
+                                        Row("credits_wallet_title", "Cüzdan")]
+        base = self.root / "base.json"
+        write(base, self.src)
+        updated = {"InsightsHub": {"title": "Hi {user}!"}, "credits_wallet_title": "Wallet", "added": "New"}
+        for locale in self.cfg["locales"]:
+            write(self.root / f"{locale}.json", updated)
+        report, code = validate(self.cfg, base_source=base, client=self.sheet)
+        self.assertEqual(code, 0, report)
+        self.assertTrue(any("InsightsHub.title" in w for w in report["warnings"]))
+        self.assertEqual(validate(self.cfg, client=self.sheet)[1], 1)
+        result = sync(self.cfg, "push", client=self.sheet)
+        self.assertEqual(result["summary"]["tr"]["contract_mismatch"], ["InsightsHub.title"])
+        tr = {r.key: r.value for r in self.sheet.tables["web_tr"]}
+        self.assertEqual(tr, {"InsightsHub.title": "Merhaba {name}", "added": "", "credits_wallet_title": "Cüzdan"})
+        with self.assertRaises(ValueError): sync(self.cfg, "pull", client=self.sheet)
+
     def test_sheet_atomic_body(self):
         class Request:
             def execute(self): return {}

@@ -62,8 +62,21 @@ def sync(config, operation, skip_fallback=False, client=None):
             if operation == "seed" and skip_fallback and locale != "en" and value == text:
                 value = ""
             values[key] = value
-        check({k: v for k, v in values.items() if v.strip()}, src, config.get("raw_messages"))
+        mismatched = []
+        for key, value in values.items():
+            if not value.strip():
+                continue
+            try:
+                check({key: value}, src, config.get("raw_messages"))
+            except ValueError:
+                # After a source contract change the old translation stays in the Sheet
+                # for the translator to fix; push still delivers the new keys/source.
+                if operation != "push":
+                    raise
+                mismatched.append(key)
         summary[locale] = {"total": len(src), "missing": sum(not v.strip() for v in values.values())}
+        if mismatched:
+            summary[locale]["contract_mismatch"] = sorted(mismatched)
         if operation == "pull":
             if locale != "en":
                 outputs[locale] = unflatten({k: v if v.strip() else src[k] for k, v in values.items()}, template=template)
@@ -83,6 +96,7 @@ def validate(config, strict=False, local_only=False, base_source=None, client=No
     base = flatten(load(base_source)) if base_source else None
     added = set(src) - set(base) if base is not None else set()
     deleted = set(base) - set(src) if base is not None else set()
+    changed = {k for k in set(src) & set(base or {}) if src[k] != base[k]}
     errors, warnings = [], []
     unknown_raw = set(config.get("raw_messages", {})) - set(src)
     if unknown_raw:
@@ -120,12 +134,14 @@ def validate(config, strict=False, local_only=False, base_source=None, client=No
                 try:
                     check({key: value}, src, config.get("raw_messages"))
                 except ValueError as exc:
-                    errors.append(f"{locale} {label} {key}: {exc}")
+                    if label == "Sheet" and key in changed:
+                        warnings.append(f"{locale} Sheet {key}: {exc} (source changed in this PR; fix in Sheet after push)")
+                    else:
+                        errors.append(f"{locale} {label} {key}: {exc}")
             if label == "Sheet" and locale == "en":
                 stale = {k for k in set(src) & set(values) if src[k] != values[k]}
-                changed = {k for k in stale if base is not None and base.get(k) != src[k]}
-                if stale - changed:
-                    errors.append(f"en Sheet: stale source values {sorted(stale-changed)}")
+                if stale - changed - added:
+                    errors.append(f"en Sheet: stale source values {sorted(stale-changed-added)}")
     return {"op": "validate", "errors": errors, "warnings": warnings,
             "source_changes": {"added": sorted(added), "deleted": sorted(deleted),
-                               "changed": sorted(k for k in set(src) & set(base or {}) if src[k] != base[k])}}, int(bool(errors))
+                               "changed": sorted(changed)}}, int(bool(errors))

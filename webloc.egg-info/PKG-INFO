@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: webloc
+Version: 0.1.0
+Summary: Next.js next-intl JSON and Google Sheets localization sync
+Requires-Python: >=3.10
+Requires-Dist: google-api-python-client<3,>=2.120
+Requires-Dist: google-auth<3,>=2.29
